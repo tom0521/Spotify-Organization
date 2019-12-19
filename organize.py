@@ -72,7 +72,7 @@ def put_in_playlists(username, sp, buckets, min_tracks):
                 if not i:
                     sp.user_playlist_replace_tracks(username, playlist_id, buckets[bucket][:100])
                 else:
-                    sp.user_playlist_add_tracks(username, playlist_id, bucket[bucket][i:i+100])
+                    sp.user_playlist_add_tracks(username, playlist_id, buckets[bucket][i:i+100])
 
 scope = 'playlist-read-private playlist-modify-public playlist-modify-private'
 

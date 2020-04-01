@@ -94,12 +94,17 @@ if __name__ == "__main__":
     if token:
         sp = spotipy.Spotify(auth=token)
         # get name:id dict of playlists
+        print("Getting user profile...")
         playlists = get_playlists(username, sp)
         # get tracks from the playlist to sort
+        print("Getting playlist...")
         results = sp.user_playlist(username, playlist, fields="tracks,next")
         # bucket sort tracks based on decade/genre
+        print("Sorting into buckets...")
         buckets = sort_tracks(username, sp, results['tracks'])
         # put the buckets into playlists
+        print("Creating playlists...")
         put_in_playlists(username, sp, buckets, min_tracks)
+        print("Done!")
     else:
         print("Can't get token for", username)

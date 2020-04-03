@@ -23,7 +23,7 @@
       <div id="loggedin">
           <div class="row align-items-center">
               <div class="col-4">
-                  <div id="user-playlists"></div>
+                <div id="user-playlists"></div>
               </div>
               <div class="col-4">
                   <div id="sorted-playlists"></div>
@@ -43,17 +43,17 @@
 
     <script id="user-playlists-template" type="text/x-handlebars-template">
         <h6 class="text-muted">Select Playlists to Sort:</h6>
-        <ul class="list-group">
+        <div class="list-group">
             {{#each items}}
-                <li class="list-group-item d-flex justify-content-between align-items-center">
+                <button onclick="getPlaylist('{{this.id}}')" class="list-group-item d-flex justify-content-between align-items-center">
                     <div class="image-parent">
                         <img src="{{this.images.0.url}}" class="img-fluid" alt="default">
                     </div>
                     {{this.name}}
                     <span class="badge badge-primary badge-pill">{{this.tracks.total}} Songs</span>
-                </li>
+                </button>
             {{/each}}
-        </ul>
+        </div>
     </script>
 
     <script id="sorted-playlists-template" type="text/x-handlebars-template">
@@ -62,10 +62,10 @@
             {{#each items}}
                 <li class="list-group-item d-flex justify-content-between align-items-center">
                     <div class="image-parent">
-                        <img src="{{this.images.0.url}}" class="img-fluid" alt="default">
+                        <img src="{{this.track.album.images.0.url}}" class="img-fluid" alt="default">
                     </div>
-                    {{this.name}}
-                    <span class="badge badge-primary badge-pill">{{this.tracks.total}} Songs</span>
+                    {{this.track.name}}
+<!--                    <span class="badge badge-primary badge-pill">{{this.tracks.total}} Songs</span>-->
                 </li>
             {{/each}}
         </ul>
@@ -74,8 +74,6 @@
     <script src="//cdnjs.cloudflare.com/ajax/libs/handlebars.js/2.0.0-alpha.1/handlebars.min.js"></script>
     <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
     <script>
-      (function() {
-
         /**
          * Obtains parameters from the hash of the URL
          * @return Object
@@ -117,10 +115,9 @@
                   'Authorization': 'Bearer ' + access_token
                 },
                 success: function(response) {
-                      userPlaylistsPlaceholder.innerHTML = userPlaylistsTemplate(response);
-                      sortedPlaylistsPlaceholder.innerHTML = sortedPlaylistsTemplate(response);
-                  $('#login').hide();
-                  $('#loggedin').show();
+                    userPlaylistsPlaceholder.innerHTML = userPlaylistsTemplate(response);
+                    $('#login').hide();
+                    $('#loggedin').show();
                 }
             });
           } else {
@@ -129,8 +126,18 @@
               $('#loggedin').hide();
           }
         }
-      })();
+
+        function getPlaylist (id) {
+           $.ajax({
+               url: `https://api.spotify.com/v1/playlists/${id}/tracks`,
+               headers: {
+                   'Authorization': 'Bearer ' + access_token
+               },
+               success: function(response) {
+                   sortedPlaylistsPlaceholder.innerHTML = sortedPlaylistsTemplate(response);
+               }
+           });
+        };
     </script>
   </body>
 </html>
-

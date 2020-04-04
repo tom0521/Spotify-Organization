@@ -5,12 +5,33 @@
     <title>Spotify Organizer</title>
     <link rel="stylesheet" href="bootstrap-4.4.1-dist/css/bootstrap.min.css">
     <style type="text/css">
-      #login, #loggedin {
+        #login, #loggedin {
         display: none;
-      }
-      .image-parent {
+        }
+        body, html {
+            height: 100%;
+        }
+        .container-fluid {
+            height: 100%;
+            max-height: 100%;
+        }
+        #loggedin {
+            height: 100%;
+            max-height: 100%;
+        }
+        .row {
+            height: 100%;
+            max-height: 100%;
+        }
+        .image-parent {
           max-width: 40px;
-      }
+        }
+        .card {
+            max-height: calc(100vh - 2rem);
+        }
+        .list-group {
+            overflow-y: auto;
+        }
     </style>
   </head>
 
@@ -22,18 +43,20 @@
       </div>
       <div id="loggedin">
           <div class="row align-items-center">
-              <div class="col-4">
-                <div id="user-playlists"></div>
+              <div class="col-4 p-3">
+                  <div id="user-playlists"></div>
               </div>
-              <div class="col-4">
+              <div class="col-4 p-3">
                   <div id="sorted-playlists"></div>
               </div>
-              <div class="col-4">
-                  <div class="row align-items-center">
+              <div class="col-4 p-3">
+                  <div class="card row align-items-center">
                       <div class="col"></div>
                       <div class="w-100"></div>
                       <div class="col">
-                          <button type="button" class="btn btn-success">Create Playlists</button>
+                          <div class="text-right">
+                            <button type="button" class="btn btn-success">Create Playlists</button>
+                          </div>
                       </div>
                   </div>
               </div>
@@ -41,38 +64,37 @@
       </div>
     </div>
 
-    <script id="user-playlists-template" type="text/x-handlebars-template">
-        <h6 class="text-muted">Select Playlists to Sort:</h6>
-        <div class="list-group">
-            {{#each items}}
-                <button onclick="getPlaylist('{{this.id}}')" class="list-group-item d-flex justify-content-between align-items-center">
-                    <div class="image-parent">
-                        <img src="{{this.images.0.url}}" class="img-fluid" alt="default">
-                    </div>
-                    {{this.name}}
-                    <span class="badge badge-primary badge-pill">{{this.tracks.total}} Songs</span>
-                </button>
-            {{/each}}
+    <script id="playlists-template" type="text/x-handlebars-template">
+        <div class="card shadow-lg bg-white rounded" id="{{list-id}}">
+            <div class="card-header">{{list-label}}</div>
+            <div class="list-group" id="{{list-id}}-list"></div>
         </div>
     </script>
 
-    <script id="sorted-playlists-template" type="text/x-handlebars-template">
-        <h6 class="text-muted">Select Sorted Playlists:</h6>
-        <ul class="list-group">
-            {{#each items}}
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <div class="image-parent">
-                        <img src="{{this.track.album.images.0.url}}" class="img-fluid" alt="default">
-                    </div>
-                    {{this.track.name}}
-<!--                    <span class="badge badge-primary badge-pill">{{this.tracks.total}} Songs</span>-->
-                </li>
-            {{/each}}
-        </ul>
+    <script id="user-playlists-entries-template" type="text/x-handlebars-template">
+        {{#each items}}
+            <button onclick="getPlaylist('{{this.id}}')" class="list-group-item d-flex justify-content-between align-items-center">
+                <div class="image-parent">
+                    <img src="{{this.images.0.url}}" class="img-fluid" alt="default">
+                </div>
+                {{this.name}}
+                <span class="badge badge-success badge-pill">{{this.tracks.total}} Songs</span>
+            </button>
+        {{/each}}
     </script>
 
-    <script src="//cdnjs.cloudflare.com/ajax/libs/handlebars.js/2.0.0-alpha.1/handlebars.min.js"></script>
+    <script id="sorted-playlists-entries-template" type="text/x-handlebars-template">
+        {{#each this}}
+            <button class="list-group-item d-flex justify-content-between align-items-center">
+                {{@key}}
+                <span class="badge badge-success badge-pill">{{this.total}} Songs</span>
+            </button>
+        {{/each}}
+    </script>
+
     <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
+    <script type="text/javascript" src="bootstrap-4.4.1-dist/js/bootstrap.min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/handlebars.js/2.0.0-alpha.1/handlebars.min.js"></script>
     <script>
         /**
          * Obtains parameters from the hash of the URL
@@ -88,12 +110,12 @@
           return hashParams;
         }
 
-        var userPlaylistsSource = document.getElementById('user-playlists-template').innerHTML,
-            userPlaylistsTemplate = Handlebars.compile(userPlaylistsSource),
+        var playlistsSource = document.getElementById('playlists-template').innerHTML
+
+        var userPlaylistsTemplate = Handlebars.compile(playlistsSource),
             userPlaylistsPlaceholder = document.getElementById('user-playlists');
 
-        var sortedPlaylistsSource = document.getElementById('sorted-playlists-template').innerHTML,
-            sortedPlaylistsTemplate = Handlebars.compile(sortedPlaylistsSource),
+        var sortedPlaylistsTemplate = Handlebars.compile(playlistsSource),
             sortedPlaylistsPlaceholder = document.getElementById('sorted-playlists');
 
         var params = getHashParams();
@@ -115,29 +137,95 @@
                   'Authorization': 'Bearer ' + access_token
                 },
                 success: function(response) {
-                    userPlaylistsPlaceholder.innerHTML = userPlaylistsTemplate(response);
+                    userPlaylistsPlaceholder.innerHTML = userPlaylistsTemplate({
+                        'list-label': 'Select Playlist to Sort:',
+                        'list-id': 'user-playlists'
+                    });
+                    addToList('user-playlists', response, 'user-playlists-entries-template');
+
                     $('#login').hide();
                     $('#loggedin').show();
                 }
             });
           } else {
-              // render initial screen
               $('#login').show();
               $('#loggedin').hide();
           }
         }
 
-        function getPlaylist (id) {
-           $.ajax({
-               url: `https://api.spotify.com/v1/playlists/${id}/tracks`,
-               headers: {
-                   'Authorization': 'Bearer ' + access_token
-               },
-               success: function(response) {
-                   sortedPlaylistsPlaceholder.innerHTML = sortedPlaylistsTemplate(response);
-               }
-           });
+        function addToList (id, res, template) {
+            console.log('here');
+            var entrySource = document.getElementById(template).innerHTML,
+                entryTemplate = Handlebars.compile(entrySource);
+
+            document.getElementById(`${id}-list`).innerHTML += entryTemplate(res);
+
+            if (res['next']) {
+                $.ajax({
+                    url: res['next'],
+                    headers: {
+                        'Authorization': 'Bearer ' + access_token
+                    },
+                    success: function (response) {
+                        addToList(id, response, template)
+                    }
+                })
+            }
+        }
+
+        function getDecade(track) {
+            var release_date = track['album']['release_date'];
+            var decade = Math.floor(parseInt(release_date.substring(2, 4)) / 10) * 10;
+            return `${decade.toString().padStart(2, '0')}'s`;
+        }
+
+        function getAssociatedIds(url, obj = {buckets: {}, album_ids: {}, artist_ids: {}}) {
+            $.ajax({
+                url: url,
+                headers: {
+                    'Authorization': 'Bearer ' + access_token
+                },
+                success: function(response) {
+                    for (item in response['items']) {
+                        let track = response['items'][item]['track'];
+                        let track_id = track['id'];
+                        let decade = getDecade(track);
+                        obj['buckets'][decade] = obj['buckets'][decade] || {items: [], total: 0};
+                        obj['buckets'][decade]['items'].push(track_id);
+                        obj['buckets'][decade]['total']++;
+                        obj['album_ids'][track['album']['id']] = obj['album_ids'][track['album']['id']] || [];
+                        obj['album_ids'][track['album']['id']].push(track_id);
+                        obj['artist_ids'][track['artists'][0]['id']] = obj['artist_ids'][track['artists'][0]['id']] || [];
+                        obj['artist_ids'][track['artists'][0]['id']].push(track_id);
+                    }
+                    if (response['next']) {
+                        obj = getAssociatedIds(response['next'], obj);
+                    } else {
+                        sortedPlaylistsPlaceholder.innerHTML = sortedPlaylistsTemplate({
+                            'list-label': 'Select Playlist:',
+                            'list-id': 'sorted-playlists'
+                        });
+                        addToList('sorted-playlists', obj.buckets, 'sorted-playlists-entries-template');
+                    }
+                }
+            });
+        }
+
+        function sortPlaylist(id) {
+            getAssociatedIds(`https://api.spotify.com/v1/playlists/${id}/tracks`);
+        }
+
+        function getPlaylist(id) {
+            sortedPlaylistsPlaceholder.innerHTML =
+                    '<div class="text-center"><div class="spinner-border text-success" role="status"><span class="sr-only">Loading...</span></div></div>';
+
+            sortPlaylist(id);
         };
+
+        $(".list-group button").on('click', function(){
+            $(this).siblings().removeClass('active')
+            $(this).addClass('active');
+        })
     </script>
   </body>
 </html>

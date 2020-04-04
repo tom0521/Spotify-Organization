@@ -206,7 +206,7 @@
                         var artist = response['artists'][artist_index];
                         for (genre_index in artist['genres']){
                             var genre = artist['genres'][genre_index];
-                            obj.buckets[genre] = obj.buckets[artist[genre]] || {items: [], total: 0};
+                            obj.buckets[genre] = obj.buckets[genre] || {items: [], total: 0};
                             obj.buckets[genre]['items'].push(obj.artist_ids[artist['id']]);
                             obj.buckets[genre]['total'] += obj.artist_ids[artist['id']].length;
                         }
@@ -217,7 +217,6 @@
                             'list-label': 'Select Playlist:',
                             'list-id': 'sorted-playlists'
                         });
-                        console.log(obj.buckets);
                         addToList('sorted-playlists', obj.buckets, 'sorted-playlists-entries-template');
                     } else {
                         sortArtists(obj, offset);
@@ -236,6 +235,7 @@
                     for (item in response['items']) {
                         let track = response['items'][item]['track'];
                         let track_id = track['id'];
+                        // TODO: move decade into album info
                         let decade = getDecade(track);
                         obj['buckets'][decade] = obj['buckets'][decade] || {items: [], total: 0};
                         obj['buckets'][decade]['items'].push(track_id);
@@ -248,6 +248,7 @@
                     if (response['next']) {
                         obj = getAssociatedIds(response['next'], obj);
                     } else {
+                        console.log(obj.artist_ids);
                         sortArtists(obj);
                     }
                 }

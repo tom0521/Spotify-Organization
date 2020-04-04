@@ -38,27 +38,24 @@
   <body>
     <div class="container-fluid">
       <div id="login">
-        <h1>This is an example of the Authorization Code flow</h1>
         <a href="/login" class="btn btn-primary">Log in with Spotify</a>
       </div>
       <div id="loggedin">
           <div class="row align-items-center">
               <div class="col-4 p-3">
-                  <div id="user-playlists"></div>
+                  <div id="user-playlists">
+                      <div class="text-center">
+                        <div class="spinner-border text-success" role="status">
+                          <span class="sr-only">Loading...</span>
+                        </div>
+                      </div>
+                  </div>
               </div>
               <div class="col-4 p-3">
                   <div id="sorted-playlists"></div>
               </div>
               <div class="col-4 p-3">
-                  <div class="card row align-items-center">
-                      <div class="col"></div>
-                      <div class="w-100"></div>
-                      <div class="col">
-                          <div class="text-right">
-                            <button type="button" class="btn btn-success">Create Playlists</button>
-                          </div>
-                      </div>
-                  </div>
+                  <div id="create-playlist"></div>
               </div>
           </div>
       </div>
@@ -73,7 +70,7 @@
 
     <script id="user-playlists-entries-template" type="text/x-handlebars-template">
         {{#each items}}
-            <button onclick="getPlaylist('{{this.id}}')" class="list-group-item d-flex justify-content-between align-items-center">
+            <button onclick="getPlaylist('{{this.id}}')" class="list-group-item rounded-0 d-flex justify-content-between align-items-center">
                 <div class="image-parent">
                     <img src="{{this.images.0.url}}" class="img-fluid" alt="default">
                 </div>
@@ -85,11 +82,23 @@
 
     <script id="sorted-playlists-entries-template" type="text/x-handlebars-template">
         {{#each this}}
-            <button class="list-group-item d-flex justify-content-between align-items-center">
+            <button class="list-group-item rounded-0 d-flex justify-content-between align-items-center">
                 {{@key}}
                 <span class="badge badge-success badge-pill">{{this.total}} Songs</span>
             </button>
         {{/each}}
+    </script>
+
+    <script id="create-playlist-template" type="text/x-handlebars-template">
+        <div class="card row align-items-center">
+            <div class="col"></div>
+            <div class="w-100"></div>
+            <div class="col">
+                <div class="text-right">
+                    <button type="button" class="btn btn-success">Create Playlists</button>
+                </div>
+            </div>
+        </div>
     </script>
 
     <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
@@ -154,7 +163,6 @@
         }
 
         function addToList (id, res, template) {
-            console.log('here');
             var entrySource = document.getElementById(template).innerHTML,
                 entryTemplate = Handlebars.compile(entrySource);
 
@@ -179,6 +187,45 @@
             return `${decade.toString().padStart(2, '0')}'s`;
         }
 
+        function sortArtists(obj, offset = 0) {
+            var ids = [];
+            var artists_ids = Object.keys(obj.artist_ids).slice(offset, offset + 50);
+            for (key in artists_ids) {
+                ids.push(artists_ids[key])
+            }
+            $.ajax({
+                url: 'https://api.spotify.com/v1/artists',
+                data: {
+                    'ids': ids.join()
+                },
+                headers: {
+                    'Authorization': 'Bearer ' + access_token
+                },
+                success: function (response) {
+                    for (artist_index in response['artists']) {
+                        var artist = response['artists'][artist_index];
+                        for (genre_index in artist['genres']){
+                            var genre = artist['genres'][genre_index];
+                            obj.buckets[genre] = obj.buckets[artist[genre]] || {items: [], total: 0};
+                            obj.buckets[genre]['items'].push(obj.artist_ids[artist['id']]);
+                            obj.buckets[genre]['total'] += obj.artist_ids[artist['id']].length;
+                        }
+                    }
+                    offset += 50;
+                    if (offset >= Object.keys(obj.artist_ids).length) {
+                        sortedPlaylistsPlaceholder.innerHTML = sortedPlaylistsTemplate({
+                            'list-label': 'Select Playlist:',
+                            'list-id': 'sorted-playlists'
+                        });
+                        console.log(obj.buckets);
+                        addToList('sorted-playlists', obj.buckets, 'sorted-playlists-entries-template');
+                    } else {
+                        sortArtists(obj, offset);
+                    }
+                }
+            });
+        }
+
         function getAssociatedIds(url, obj = {buckets: {}, album_ids: {}, artist_ids: {}}) {
             $.ajax({
                 url: url,
@@ -201,11 +248,7 @@
                     if (response['next']) {
                         obj = getAssociatedIds(response['next'], obj);
                     } else {
-                        sortedPlaylistsPlaceholder.innerHTML = sortedPlaylistsTemplate({
-                            'list-label': 'Select Playlist:',
-                            'list-id': 'sorted-playlists'
-                        });
-                        addToList('sorted-playlists', obj.buckets, 'sorted-playlists-entries-template');
+                        sortArtists(obj);
                     }
                 }
             });

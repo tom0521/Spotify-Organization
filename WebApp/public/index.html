@@ -43,7 +43,7 @@
       <div id="loggedin">
           <div class="row align-items-center">
               <div class="col-4 p-3">
-                  <div id="user-playlists">
+                  <div class="card" id="user-playlists">
                       <div class="text-center">
                         <div class="spinner-border text-success" role="status">
                           <span class="sr-only">Loading...</span>
@@ -52,20 +52,19 @@
                   </div>
               </div>
               <div class="col-4 p-3">
-                  <div id="sorted-playlists"></div>
+                  <div class="card" id="sorted-playlists"></div>
               </div>
               <div class="col-4 p-3">
-                  <div id="create-playlist"></div>
+                  <div class="card" id="create-playlist">
+                  </div>
               </div>
           </div>
       </div>
     </div>
 
     <script id="playlists-template" type="text/x-handlebars-template">
-        <div class="card shadow-lg bg-white rounded" id="{{list-id}}">
-            <div class="card-header">{{list-label}}</div>
-            <div class="list-group" id="{{list-id}}-list"></div>
-        </div>
+        <div class="card-header">{{list-label}}</div>
+        <div class="list-group" id="{{list-id}}-list"></div>
     </script>
 
     <script id="user-playlists-entries-template" type="text/x-handlebars-template">
@@ -82,23 +81,24 @@
 
     <script id="sorted-playlists-entries-template" type="text/x-handlebars-template">
         {{#each this}}
-            <button class="list-group-item rounded-0 d-flex justify-content-between align-items-center">
+            <button onclick='getBucket("{{@key}}")' class="list-group-item rounded-0 d-flex justify-content-between align-items-center">
                 {{@key}}
                 <span class="badge badge-success badge-pill">{{this.total}} Songs</span>
             </button>
         {{/each}}
     </script>
 
-    <script id="create-playlist-template" type="text/x-handlebars-template">
-        <div class="card row align-items-center">
-            <div class="col"></div>
-            <div class="w-100"></div>
-            <div class="col">
-                <div class="text-right">
-                    <button type="button" class="btn btn-success">Create Playlists</button>
+    <script id="songs-template" type="text/x-handlebars-template">
+        {{#each tracks}}
+            <div class="list-group-item rounded-0 d-flex justify-content-between align-items-center">
+                <div class="image-parent">
+                    <img src="{{this.album.images.0.url}}" class="img-fluid" alt="default">
                 </div>
+                <div>{{this.artists.0.name}}</div>
+                <div>-</div>
+                <div>{{this.name}}</div>
             </div>
-        </div>
+        {{/each}}
     </script>
 
     <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
@@ -119,7 +119,7 @@
           return hashParams;
         }
 
-        var playlistsSource = document.getElementById('playlists-template').innerHTML
+        var playlistsSource = document.getElementById('playlists-template').innerHTML;
 
         var userPlaylistsTemplate = Handlebars.compile(playlistsSource),
             userPlaylistsPlaceholder = document.getElementById('user-playlists');
@@ -127,11 +127,16 @@
         var sortedPlaylistsTemplate = Handlebars.compile(playlistsSource),
             sortedPlaylistsPlaceholder = document.getElementById('sorted-playlists');
 
+        var selectedPlaylistTemplate = Handlebars.compile(playlistsSource),
+            selectedPlaylistPlaceholder = document.getElementById('create-playlist');
+
         var params = getHashParams();
 
         var access_token = params.access_token,
             refresh_token = params.refresh_token,
             error = params.error;
+
+        var buckets = {};
 
         if (error) {
           alert('There was an error during the authentication');
@@ -187,11 +192,11 @@
             return `${decade.toString().padStart(2, '0')}'s`;
         }
 
-        function sortArtists(obj, offset = 0) {
+        function sortArtists(artist_ids, offset = 0) {
             var ids = [];
-            var artists_ids = Object.keys(obj.artist_ids).slice(offset, offset + 50);
-            for (key in artists_ids) {
-                ids.push(artists_ids[key])
+            var artists = Object.keys(artist_ids).slice(offset, offset + 50);
+            for (index in artists) {
+                ids.push(artists[index])
             }
             $.ajax({
                 url: 'https://api.spotify.com/v1/artists',
@@ -206,50 +211,46 @@
                         var artist = response['artists'][artist_index];
                         for (genre_index in artist['genres']){
                             var genre = artist['genres'][genre_index];
-                            obj.buckets[genre] = obj.buckets[genre] || {items: [], total: 0};
-                            obj.buckets[genre]['items'].push(obj.artist_ids[artist['id']]);
-                            obj.buckets[genre]['total'] += obj.artist_ids[artist['id']].length;
+                            buckets[genre] = buckets[genre] || {items: [], total: 0};
+                            buckets[genre]['items'].push(artist_ids[artist['id']]);
+                            buckets[genre]['total'] += artist_ids[artist['id']].length;
                         }
                     }
                     offset += 50;
-                    if (offset >= Object.keys(obj.artist_ids).length) {
+                    if (offset >= Object.keys(artist_ids).length) {
                         sortedPlaylistsPlaceholder.innerHTML = sortedPlaylistsTemplate({
-                            'list-label': 'Select Playlist:',
+                            'list-label': 'Select Your New Playlist:',
                             'list-id': 'sorted-playlists'
                         });
-                        addToList('sorted-playlists', obj.buckets, 'sorted-playlists-entries-template');
+                        addToList('sorted-playlists', buckets, 'sorted-playlists-entries-template');
                     } else {
-                        sortArtists(obj, offset);
+                        sortArtists(artist_ids, offset);
                     }
                 }
             });
         }
 
-        function getAssociatedIds(url, obj = {buckets: {}, album_ids: {}, artist_ids: {}}) {
+        function getAssociatedIds(url, artist_ids = {}) {
             $.ajax({
                 url: url,
                 headers: {
                     'Authorization': 'Bearer ' + access_token
                 },
                 success: function(response) {
-                    for (item in response['items']) {
-                        let track = response['items'][item]['track'];
+                    for (index in response['items']) {
+                        let track = response['items'][index]['track'];
                         let track_id = track['id'];
-                        // TODO: move decade into album info
                         let decade = getDecade(track);
-                        obj['buckets'][decade] = obj['buckets'][decade] || {items: [], total: 0};
-                        obj['buckets'][decade]['items'].push(track_id);
-                        obj['buckets'][decade]['total']++;
-                        obj['album_ids'][track['album']['id']] = obj['album_ids'][track['album']['id']] || [];
-                        obj['album_ids'][track['album']['id']].push(track_id);
-                        obj['artist_ids'][track['artists'][0]['id']] = obj['artist_ids'][track['artists'][0]['id']] || [];
-                        obj['artist_ids'][track['artists'][0]['id']].push(track_id);
+                        buckets[decade] = buckets[decade] || {items: [], total: 0};
+                        buckets[decade]['items'].push(track_id);
+                        buckets[decade]['total']++;
+                        artist_ids[track['artists'][0]['id']] = artist_ids[track['artists'][0]['id']] || [];
+                        artist_ids[track['artists'][0]['id']].push(track_id);
                     }
                     if (response['next']) {
-                        obj = getAssociatedIds(response['next'], obj);
+                        getAssociatedIds(response['next'], artist_ids);
                     } else {
-                        console.log(obj.artist_ids);
-                        sortArtists(obj);
+                        sortArtists(artist_ids);
                     }
                 }
             });
@@ -263,13 +264,43 @@
             sortedPlaylistsPlaceholder.innerHTML =
                     '<div class="text-center"><div class="spinner-border text-success" role="status"><span class="sr-only">Loading...</span></div></div>';
 
+            buckets = {};
             sortPlaylist(id);
         };
 
-        $(".list-group button").on('click', function(){
-            $(this).siblings().removeClass('active')
-            $(this).addClass('active');
-        })
+        function getTracks(ids, offset = 0) {
+            $.ajax({
+                url: 'https://api.spotify.com/v1/tracks',
+                data: {
+                    'ids': ids.slice(offset, offset + 50).join()
+                },
+                headers: {
+                    'Authorization': 'Bearer ' + access_token
+                },
+                success: function (response) {
+                    if (!offset) {
+                        selectedPlaylistPlaceholder.innerHTML = selectedPlaylistTemplate({
+                            'list-label': 'Create Your New Playlist:',
+                            'list-id': 'selected-playlist'
+                        });
+                    }
+                    addToList('selected-playlist', response, 'songs-template');
+                    offset += 50;
+                    if (offset < ids.length){
+                        getTracks(ids, offset);
+                    } else {
+                        selectedPlaylistPlaceholder.innerHTML += '<div class="card-footer text-right"><button type="button" class="btn btn-success">Create Playlists</button></div>'
+                    }
+                }
+            })
+        }
+
+        function getBucket(bucket) {
+            var ids = buckets[bucket]['items'];
+            selectedPlaylistPlaceholder.innerHTML =
+                    '<div class="text-center"><div class="spinner-border text-success" role="status"><span class="sr-only">Loading...</span></div></div>';
+            getTracks(ids);
+        }
     </script>
   </body>
 </html>

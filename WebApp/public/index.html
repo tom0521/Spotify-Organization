@@ -138,6 +138,8 @@
 
         var buckets = {};
 
+        var chosenBucket;
+
         if (error) {
           alert('There was an error during the authentication');
         } else {
@@ -261,6 +263,7 @@
         }
 
         function getPlaylist(id) {
+            selectedPlaylistPlaceholder.innerHTML = '';
             sortedPlaylistsPlaceholder.innerHTML =
                     '<div class="text-center"><div class="spinner-border text-success" role="status"><span class="sr-only">Loading...</span></div></div>';
 
@@ -289,17 +292,49 @@
                     if (offset < ids.length){
                         getTracks(ids, offset);
                     } else {
-                        selectedPlaylistPlaceholder.innerHTML += '<div class="card-footer text-right"><button type="button" class="btn btn-success">Create Playlists</button></div>'
+                        selectedPlaylistPlaceholder.innerHTML += '<div class="card-footer text-right"><button type="button" class="btn btn-success" onclick="createPlaylist()">Create Playlists</button></div>'
                     }
                 }
             })
         }
 
         function getBucket(bucket) {
+            chosenBucket = bucket;
             var ids = buckets[bucket]['items'];
             selectedPlaylistPlaceholder.innerHTML =
                     '<div class="text-center"><div class="spinner-border text-success" role="status"><span class="sr-only">Loading...</span></div></div>';
             getTracks(ids);
+        }
+
+        function createPlaylist() {
+            $.ajax({
+                url: 'https://api.spotify.com/v1/me',
+                headers: {
+                    'Authorization': 'Bearer ' + access_token
+                },
+                success: function (response) {
+                    $.ajax({
+                        type: 'POST',
+                        url: `https://api.spotify.com/v1/users/${response["id"]}/playlists`,
+                        headers: {
+                            'Authorization': 'Bearer ' + access_token,
+                            'Content-Type': 'application/json'
+                        },
+                        dataType: 'json',
+                        data: JSON.stringify({
+                            name: chosenBucket,
+                            public: false
+                        }),
+                        success: function (res) {
+                            addTracksToPlaylist (res['id']);
+                        }
+                    })
+                }
+            })
+        }
+
+        function addTracksToPlaylist (id) {
+            console.log ('playlist created\n');
         }
     </script>
   </body>

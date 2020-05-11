@@ -140,6 +140,8 @@
 
         var chosenBucket;
 
+        var tracks = {};
+
         if (error) {
           alert('There was an error during the authentication');
         } else {
@@ -214,7 +216,7 @@
                         for (genre_index in artist['genres']){
                             var genre = artist['genres'][genre_index];
                             buckets[genre] = buckets[genre] || {items: [], total: 0};
-                            buckets[genre]['items'].push(artist_ids[artist['id']]);
+                            buckets[genre]['items'] = [].concat(buckets[genre]['items'], artist_ids[artist['id']]);
                             buckets[genre]['total'] += artist_ids[artist['id']].length;
                         }
                     }
@@ -242,6 +244,7 @@
                     for (index in response['items']) {
                         let track = response['items'][index]['track'];
                         let track_id = track['id'];
+                        tracks[track_id] = track;
                         let decade = getDecade(track);
                         buckets[decade] = buckets[decade] || {items: [], total: 0};
                         buckets[decade]['items'].push(track_id);
@@ -333,8 +336,27 @@
             })
         }
 
-        function addTracksToPlaylist (id) {
-            console.log ('playlist created\n');
+        function addTracksToPlaylist (playlist_id, offset=0) {
+            var uris = [];
+            for (index in buckets[chosenBucket]['items'].slice(offset, offset + 100)) {
+                uris.push(tracks[buckets[chosenBucket]['items'][index]]['uri']);
+            }
+            $.ajax({
+                type: 'POST',
+                url: `https://api.spotify.com/v1/playlists/${playlist_id}/tracks`,
+                headers: {
+                    'Authorization': 'Bearer ' + access_token,
+                    'Content-Type': 'applicaton/json'
+                },
+                dataType: 'json',
+                data: JSON.stringify(uris),
+                success: function (response) {
+                    offset += 100;
+                    if (offset < buckets[chosenBucket]['total']) {
+                        addTracksToPlaylist(playlist_id, offset);
+                    }
+                }
+            })
         }
     </script>
   </body>

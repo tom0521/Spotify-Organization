@@ -43,13 +43,7 @@
       <div id="loggedin">
           <div class="row align-items-center">
               <div class="col-4 p-3">
-                  <div class="card" id="user-playlists">
-                      <div class="text-center">
-                        <div class="spinner-border text-success" role="status">
-                          <span class="sr-only">Loading...</span>
-                        </div>
-                      </div>
-                  </div>
+                  <div class="card" id="user-playlists"></div>
               </div>
               <div class="col-4 p-3">
                   <div class="card" id="sorted-playlists"></div>
@@ -62,6 +56,44 @@
       </div>
     </div>
 
+    <!-- List Group Template -->
+    <script id="list-template" type="text/x-handlebars-template">
+        <div class="card-header">{{header}}</div>
+        <div class="list-group" id="{{id}}-list">
+            <!-- Default content is a spinner -->
+            <div class="text-center list-group-item">
+                <div class="spinner-border text-success" role="status">
+                    <span class="sr-only">Loading...</span>
+                </div>
+            </div>
+        </div>
+        <!-- If a footer is defined create it -->
+        {{#if footer}}
+        <div class="card-footer">{{footer}}</div>
+        {{/if}}
+    </script>
+
+    <!-- Loop items template -->
+    <script id="list-items-template" type="text/x-handlebars-template">
+        {{#each items}}
+            {{> (lookup @root 'partial') }}
+        {{/each}}
+    </script>
+
+    <script id="user-playlist-partial" type="text/x-handlebars-template">
+        <button onclick="getPlaylist('{{id}}')" class="list-group-item rounded-0 d-flex justify-content-between align-items-center">
+            <div class="image-parent">
+                {{#if images.0.url}}
+                    <img src="{{images.0.url}}" class="img-fluid" alt="default">
+                {{else}}
+                    <img src="images/default.png" class="img-fluid" alt="default">
+                {{/if}}
+            </div>
+            {{name}}
+            <span class="badge badge-success badge-pill">{{tracks.total}} Songs</span>
+        </button>
+    </script>
+
     <script id="playlists-template" type="text/x-handlebars-template">
         <div class="card-header">{{list-label}}</div>
         <div class="list-group" id="{{list-id}}-list"></div>
@@ -71,7 +103,11 @@
         {{#each items}}
             <button onclick="getPlaylist('{{this.id}}')" class="list-group-item rounded-0 d-flex justify-content-between align-items-center">
                 <div class="image-parent">
-                    <img src="{{this.images.0.url}}" class="img-fluid" alt="default">
+                    {{#if this.images.0.url}}
+                        <img src="{{this.images.0.url}}" class="img-fluid" alt="default">
+                    {{else}}
+                        <img src="images/default.png" class="img-fluid" alt="default">
+                    {{/if}}
                 </div>
                 {{this.name}}
                 <span class="badge badge-success badge-pill">{{this.tracks.total}} Songs</span>
@@ -103,7 +139,7 @@
 
     <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
     <script type="text/javascript" src="bootstrap-4.4.1-dist/js/bootstrap.min.js"></script>
-    <script src="//cdnjs.cloudflare.com/ajax/libs/handlebars.js/2.0.0-alpha.1/handlebars.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/handlebars.js/4.7.6/handlebars.min.js"></script>
     <script>
         /**
          * Obtains parameters from the hash of the URL
@@ -119,10 +155,23 @@
           return hashParams;
         }
 
+        var userPlaylistSource = document.getElementById('user-playlist-partial').innerHTML;
+        Handlebars.registerPartial('user-playlist-partial', userPlaylistSource);
+
+        var listGroupSource = document.getElementById('list-template').innerHTML,
+            listGroupTemplate = Handlebars.compile(listGroupSource);
+
         var playlistsSource = document.getElementById('playlists-template').innerHTML;
 
-        var userPlaylistsTemplate = Handlebars.compile(playlistsSource),
-            userPlaylistsPlaceholder = document.getElementById('user-playlists');
+        var listSource = document.getElementById('list-items-template').innerHTML,
+            listTemplate = Handlebars.compile(listSource);
+
+        /* Setup the User playlist column */
+        var userPlaylistsPlaceholder = document.getElementById('user-playlists');
+        userPlaylistsPlaceholder.innerHTML = listGroupTemplate({
+            header: 'Playlists',
+            id: 'user-playlists'
+        });
 
         var sortedPlaylistsTemplate = Handlebars.compile(playlistsSource),
             sortedPlaylistsPlaceholder = document.getElementById('sorted-playlists');
@@ -136,39 +185,55 @@
             refresh_token = params.refresh_token,
             error = params.error;
 
+
+        var playlists = {items:[],total:0};
         var buckets = {};
-
-        var chosenBucket;
-
         var tracks = {};
+        // TODO: remove
+        var chosenBucket;
 
         if (error) {
           alert('There was an error during the authentication');
         } else {
           if (access_token) {
+            $('#login').hide();
+            $('#loggedin').show();
+            getPlaylists();
+          } else {
+            $('#login').show();
+            $('#loggedin').hide();
+          }
+        }
+
+        // TODO: Issue #13
+        // function getSavedSong() {
+        //
+        // }
+
+        function getPlaylists(url='https://api.spotify.com/v1/me/playlists') {
             $.ajax({
-                url: 'https://api.spotify.com/v1/me/playlists',
+                url: url,
                 data: {
                     limit: 50
                 },
                 headers: {
-                  'Authorization': 'Bearer ' + access_token
+                    'Authorization': 'Bearer ' + access_token
                 },
-                success: function(response) {
-                    userPlaylistsPlaceholder.innerHTML = userPlaylistsTemplate({
-                        'list-label': 'Select Playlist to Sort:',
-                        'list-id': 'user-playlists'
-                    });
-                    addToList('user-playlists', response, 'user-playlists-entries-template');
-
-                    $('#login').hide();
-                    $('#loggedin').show();
+                success: function (response) {
+                    /* TODO: is there an easier way */
+                    playlists.items = playlists.items.concat(response.items);
+                    if (response.next) {
+                        getPlaylists(response.next);
+                    } else {
+                        playlists.items.sort(function(a, b){ return b.tracks.total - a.tracks.total; });
+                        playlists.total = response.total;
+                        document.getElementById('user-playlists-list').innerHTML = listTemplate({
+                            partial: 'user-playlist-partial',
+                            items: playlists.items
+                        })
+                    }
                 }
             });
-          } else {
-              $('#login').show();
-              $('#loggedin').hide();
-          }
         }
 
         function addToList (id, res, template) {

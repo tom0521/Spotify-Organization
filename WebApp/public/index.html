@@ -46,10 +46,10 @@
                   <div class="card" id="user-playlists"></div>
               </div>
               <div class="col-4 p-3">
-                  <div class="card" id="sorted-playlists"></div>
+                  <div class="card" id="buckets"></div>
               </div>
               <div class="col-4 p-3">
-                  <div class="card" id="create-playlist">
+                  <div class="card" id="create">
                   </div>
               </div>
           </div>
@@ -67,9 +67,9 @@
                 </div>
             </div>
         </div>
-        <!-- If a footer is defined create it -->
+        <!-- If a footer is defined append it -->
         {{#if footer}}
-        <div class="card-footer">{{footer}}</div>
+            {{> (lookup . 'footer') }}
         {{/if}}
     </script>
 
@@ -80,8 +80,9 @@
         {{/each}}
     </script>
 
+    <!-- User Playlist Partial Template -->
     <script id="user-playlist-partial" type="text/x-handlebars-template">
-        <button onclick="getPlaylist('{{id}}')" class="list-group-item rounded-0 d-flex justify-content-between align-items-center">
+        <button onclick="getPlaylistTracks('{{id}}')" class="list-group-item rounded-0 d-flex justify-content-between align-items-center">
             <div class="image-parent">
                 {{#if images.0.url}}
                     <img src="{{images.0.url}}" class="img-fluid" alt="default">
@@ -94,47 +95,31 @@
         </button>
     </script>
 
-    <script id="playlists-template" type="text/x-handlebars-template">
-        <div class="card-header">{{list-label}}</div>
-        <div class="list-group" id="{{list-id}}-list"></div>
+    <!-- Sorted Playlist Partial Template -->
+    <script id="bucket-partial" type="text/x-handlebars-template">
+        <button onclick='getBucket("{{@key}}")' class="list-group-item rounded-0 d-flex justify-content-between align-items-center">
+            {{@key}}
+            <span class="badge badge-success badge-pill">{{total}} Songs</span>
+        </button>
     </script>
 
-    <script id="user-playlists-entries-template" type="text/x-handlebars-template">
-        {{#each items}}
-            <button onclick="getPlaylist('{{this.id}}')" class="list-group-item rounded-0 d-flex justify-content-between align-items-center">
-                <div class="image-parent">
-                    {{#if this.images.0.url}}
-                        <img src="{{this.images.0.url}}" class="img-fluid" alt="default">
-                    {{else}}
-                        <img src="images/default.png" class="img-fluid" alt="default">
-                    {{/if}}
-                </div>
-                {{this.name}}
-                <span class="badge badge-success badge-pill">{{this.tracks.total}} Songs</span>
-            </button>
-        {{/each}}
-    </script>
-
-    <script id="sorted-playlists-entries-template" type="text/x-handlebars-template">
-        {{#each this}}
-            <button onclick='getBucket("{{@key}}")' class="list-group-item rounded-0 d-flex justify-content-between align-items-center">
-                {{@key}}
-                <span class="badge badge-success badge-pill">{{this.total}} Songs</span>
-            </button>
-        {{/each}}
-    </script>
-
-    <script id="songs-template" type="text/x-handlebars-template">
-        {{#each tracks}}
-            <div class="list-group-item rounded-0 d-flex justify-content-between align-items-center">
-                <div class="image-parent">
-                    <img src="{{this.album.images.0.url}}" class="img-fluid" alt="default">
-                </div>
-                <div>{{this.artists.0.name}}</div>
-                <div>-</div>
-                <div>{{this.name}}</div>
+    <!-- Song Partial Template -->
+    <script id="song-partial" type="text/x-handlebars-template">
+        <div class="list-group-item rounded-0 d-flex justify-content-between align-items-center">
+            <div class="image-parent">
+                <img src="{{album.images.0.url}}" class="img-fluid" alt="default">
             </div>
-        {{/each}}
+            <div>{{artists.0.name}}</div>
+            <div>-</div>
+            <div>{{name}}</div>
+        </div>
+    </script>
+
+    <!-- Create Playlist Footer Partial -->
+    <script id="create-footer-partial" type="text/x-handlebars-template">
+        <div class="card-footer text-right">
+            <button type="button" class="btn btn-success" onclick="createPlaylist()">Create Playlists</button>
+        </div>
     </script>
 
     <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
@@ -155,29 +140,32 @@
           return hashParams;
         }
 
-        var userPlaylistSource = document.getElementById('user-playlist-partial').innerHTML;
-        Handlebars.registerPartial('user-playlist-partial', userPlaylistSource);
+        /* Register all the partials */
+        Handlebars.registerPartial('user-playlist-partial', $('#user-playlist-partial').html());
+        Handlebars.registerPartial('bucket-partial', $('#bucket-partial').html());
+        Handlebars.registerPartial('song-partial', $('#song-partial').html());
+        Handlebars.registerPartial('create-footer-partial', $('#create-footer-partial').html());
 
-        var listGroupSource = document.getElementById('list-template').innerHTML,
-            listGroupTemplate = Handlebars.compile(listGroupSource);
-
-        var playlistsSource = document.getElementById('playlists-template').innerHTML;
-
-        var listSource = document.getElementById('list-items-template').innerHTML,
-            listTemplate = Handlebars.compile(listSource);
+        /* Compile the List Group Template and the List Items Temmplate */
+        var listGroupTemplate = Handlebars.compile($('#list-template').html()),
+            listTemplate = Handlebars.compile($('#list-items-template').html());
 
         /* Setup the User playlist column */
-        var userPlaylistsPlaceholder = document.getElementById('user-playlists');
-        userPlaylistsPlaceholder.innerHTML = listGroupTemplate({
+        $('#user-playlists').html(listGroupTemplate({
             header: 'Playlists',
             id: 'user-playlists'
-        });
-
-        var sortedPlaylistsTemplate = Handlebars.compile(playlistsSource),
-            sortedPlaylistsPlaceholder = document.getElementById('sorted-playlists');
-
-        var selectedPlaylistTemplate = Handlebars.compile(playlistsSource),
-            selectedPlaylistPlaceholder = document.getElementById('create-playlist');
+        }));
+        /* Setup the Buckets Column */
+        $('#buckets').html(listGroupTemplate({
+            header: 'Categories',
+            id: 'buckets'
+        }));
+        /* Setup the Create Playlist Column */
+        $('#create').html(listGroupTemplate({
+            header: 'Create',
+            id: 'create',
+            footer: 'create-footer-partial'
+        }));
 
         var params = getHashParams();
 
@@ -186,9 +174,10 @@
             error = params.error;
 
 
-        var playlists = {items:[],total:0};
         var buckets = {};
+        var playlists = {items:[], total:0};
         var tracks = {};
+        var artists = {};
         // TODO: remove
         var chosenBucket;
 
@@ -217,23 +206,88 @@
                     limit: 50
                 },
                 headers: {
-                    'Authorization': 'Bearer ' + access_token
+                    Authorization: 'Bearer ' + access_token
                 },
                 success: function (response) {
-                    /* TODO: is there an easier way */
+                    /* TODO: is there an easier way? */
                     playlists.items = playlists.items.concat(response.items);
                     if (response.next) {
                         getPlaylists(response.next);
                     } else {
-                        playlists.items.sort(function(a, b){ return b.tracks.total - a.tracks.total; });
+                        playlists.items.sort((a, b) => b.tracks.total - a.tracks.total);
                         playlists.total = response.total;
-                        document.getElementById('user-playlists-list').innerHTML = listTemplate({
+                        $('#user-playlists-list').html(listTemplate({
                             partial: 'user-playlist-partial',
                             items: playlists.items
-                        })
+                        }));
                     }
                 }
             });
+        }
+
+        function getPlaylistTracks(id, url=`https://api.spotify.com/v1/playlists/${id}/tracks`) {
+            $.ajax({
+                url: url,
+                headers: {
+                    Authorization: 'Bearer ' + access_token
+                },
+                success: function(response) {
+                    for (let index in response.items) {
+                        let track = response.items[index].track;
+                        tracks[track.id] = track;
+                        let decade = getDecade(track);
+                        buckets[decade] = buckets[decade] || {items: [], total: 0};
+                        buckets[decade].items.push(track.id);
+                        buckets[decade].total++;
+                        artists[track.artists[0].id] = artists[track.artists[0].id] || {tracks:[]};
+                        artists[track.artists[0].id].tracks.push(track.id);
+                    }
+                    if (response.next) {
+                        getPlaylistTracks(id, response.next);
+                    } else {
+                        sortArtists();
+                    }
+                }
+            });
+        }
+
+        function sortArtists(offset = 0) {
+            $.ajax({
+                url: 'https://api.spotify.com/v1/artists',
+                data: {
+                    ids: Array.from(Object.keys(artists).slice(offset, offset+=50)).join()
+                },
+                headers: {
+                    Authorization: 'Bearer ' + access_token
+                },
+                success: function (response) {
+                    for (artist_index in response.artists) {
+                        var artist = response.artists[artist_index];
+                        artists[artist.id].info = artist;
+                        for (genre_index in artist.genres) {
+                            var genre = artist.genres[genre_index];
+                            buckets[genre] = buckets[genre] || {items: [], total: 0};
+                            buckets[genre].items = buckets[genre].items.concat(artists[artist.id].tracks);
+                            buckets[genre].total += artists[artist.id].tracks.length;
+                        }
+                    }
+                    if (offset < Object.keys(artists).length) {
+                        sortArtists(offset);
+                    } else {
+                        /* TODO: #17 sort buckets by total songs */
+                        $('#buckets-list').html(listTemplate({
+                            partial: 'bucket-partial',
+                            items: buckets
+                        }));
+                    }
+                }
+            });
+        }
+
+        function getDecade(track) {
+            var release_date = track['album']['release_date'];
+            var decade = Math.floor(parseInt(release_date.substring(2, 4)) / 10) * 10;
+            return `${decade.toString().padStart(2, '0')}'s`;
         }
 
         function addToList (id, res, template) {
@@ -254,90 +308,6 @@
                 })
             }
         }
-
-        function getDecade(track) {
-            var release_date = track['album']['release_date'];
-            var decade = Math.floor(parseInt(release_date.substring(2, 4)) / 10) * 10;
-            return `${decade.toString().padStart(2, '0')}'s`;
-        }
-
-        function sortArtists(artist_ids, offset = 0) {
-            var ids = [];
-            var artists = Object.keys(artist_ids).slice(offset, offset + 50);
-            for (index in artists) {
-                ids.push(artists[index])
-            }
-            $.ajax({
-                url: 'https://api.spotify.com/v1/artists',
-                data: {
-                    'ids': ids.join()
-                },
-                headers: {
-                    'Authorization': 'Bearer ' + access_token
-                },
-                success: function (response) {
-                    for (artist_index in response['artists']) {
-                        var artist = response['artists'][artist_index];
-                        for (genre_index in artist['genres']){
-                            var genre = artist['genres'][genre_index];
-                            buckets[genre] = buckets[genre] || {items: [], total: 0};
-                            buckets[genre]['items'] = [].concat(buckets[genre]['items'], artist_ids[artist['id']]);
-                            buckets[genre]['total'] += artist_ids[artist['id']].length;
-                        }
-                    }
-                    offset += 50;
-                    if (offset >= Object.keys(artist_ids).length) {
-                        sortedPlaylistsPlaceholder.innerHTML = sortedPlaylistsTemplate({
-                            'list-label': 'Select Your New Playlist:',
-                            'list-id': 'sorted-playlists'
-                        });
-                        addToList('sorted-playlists', buckets, 'sorted-playlists-entries-template');
-                    } else {
-                        sortArtists(artist_ids, offset);
-                    }
-                }
-            });
-        }
-
-        function getAssociatedIds(url, artist_ids = {}) {
-            $.ajax({
-                url: url,
-                headers: {
-                    'Authorization': 'Bearer ' + access_token
-                },
-                success: function(response) {
-                    for (index in response['items']) {
-                        let track = response['items'][index]['track'];
-                        let track_id = track['id'];
-                        tracks[track_id] = track;
-                        let decade = getDecade(track);
-                        buckets[decade] = buckets[decade] || {items: [], total: 0};
-                        buckets[decade]['items'].push(track_id);
-                        buckets[decade]['total']++;
-                        artist_ids[track['artists'][0]['id']] = artist_ids[track['artists'][0]['id']] || [];
-                        artist_ids[track['artists'][0]['id']].push(track_id);
-                    }
-                    if (response['next']) {
-                        getAssociatedIds(response['next'], artist_ids);
-                    } else {
-                        sortArtists(artist_ids);
-                    }
-                }
-            });
-        }
-
-        function sortPlaylist(id) {
-            getAssociatedIds(`https://api.spotify.com/v1/playlists/${id}/tracks`);
-        }
-
-        function getPlaylist(id) {
-            selectedPlaylistPlaceholder.innerHTML = '';
-            sortedPlaylistsPlaceholder.innerHTML =
-                    '<div class="text-center"><div class="spinner-border text-success" role="status"><span class="sr-only">Loading...</span></div></div>';
-
-            buckets = {};
-            sortPlaylist(id);
-        };
 
         function getTracks(ids, offset = 0) {
             $.ajax({

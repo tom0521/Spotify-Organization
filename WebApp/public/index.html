@@ -178,7 +178,6 @@
         var playlists = {items:[], total:0};
         var tracks = {};
         var artists = {};
-        // TODO: remove
         var chosenBucket;
 
         if (error) {
@@ -195,7 +194,7 @@
         }
 
         // TODO: Issue #13
-        // function getSavedSong() {
+        // function getSavedSongs() {
         //
         // }
 
@@ -290,57 +289,26 @@
             return `${decade.toString().padStart(2, '0')}'s`;
         }
 
-        function addToList (id, res, template) {
-            var entrySource = document.getElementById(template).innerHTML,
-                entryTemplate = Handlebars.compile(entrySource);
-
-            document.getElementById(`${id}-list`).innerHTML += entryTemplate(res);
-
-            if (res['next']) {
-                $.ajax({
-                    url: res['next'],
-                    headers: {
-                        'Authorization': 'Bearer ' + access_token
-                    },
-                    success: function (response) {
-                        addToList(id, response, template)
-                    }
-                })
+        function getTracks(ids) {
+            let bucket_tracks = [];
+            for (index in ids) {
+                bucket_tracks.push(tracks[ids[index]]);
             }
-        }
-
-        function getTracks(ids, offset = 0) {
-            $.ajax({
-                url: 'https://api.spotify.com/v1/tracks',
-                data: {
-                    'ids': ids.slice(offset, offset + 50).join()
-                },
-                headers: {
-                    'Authorization': 'Bearer ' + access_token
-                },
-                success: function (response) {
-                    if (!offset) {
-                        selectedPlaylistPlaceholder.innerHTML = selectedPlaylistTemplate({
-                            'list-label': 'Create Your New Playlist:',
-                            'list-id': 'selected-playlist'
-                        });
-                    }
-                    addToList('selected-playlist', response, 'songs-template');
-                    offset += 50;
-                    if (offset < ids.length){
-                        getTracks(ids, offset);
-                    } else {
-                        selectedPlaylistPlaceholder.innerHTML += '<div class="card-footer text-right"><button type="button" class="btn btn-success" onclick="createPlaylist()">Create Playlists</button></div>'
-                    }
-                }
-            })
+            bucket_tracks.sort((a, b) => {
+               if (a.artists[0].name == b.artists[0].name) {
+                   return a.name.replace(/^(The )/, "").localeCompare(b.name.replace(/^(The )/, ""));
+               }
+               return a.artists[0].name.replace(/^(The )/, "").localeCompare(b.artists[0].name.replace(/^(The )/, ""));
+            });
+            $('#create-list').html(listTemplate({
+                partial: 'song-partial',
+                items: bucket_tracks
+            }));
         }
 
         function getBucket(bucket) {
             chosenBucket = bucket;
             var ids = buckets[bucket]['items'];
-            selectedPlaylistPlaceholder.innerHTML =
-                    '<div class="text-center"><div class="spinner-border text-success" role="status"><span class="sr-only">Loading...</span></div></div>';
             getTracks(ids);
         }
 
@@ -348,14 +316,14 @@
             $.ajax({
                 url: 'https://api.spotify.com/v1/me',
                 headers: {
-                    'Authorization': 'Bearer ' + access_token
+                    Authorization: 'Bearer ' + access_token
                 },
                 success: function (response) {
                     $.ajax({
                         type: 'POST',
                         url: `https://api.spotify.com/v1/users/${response["id"]}/playlists`,
                         headers: {
-                            'Authorization': 'Bearer ' + access_token,
+                            Authorization: 'Bearer ' + access_token,
                             'Content-Type': 'application/json'
                         },
                         dataType: 'json',
@@ -366,14 +334,14 @@
                         success: function (res) {
                             addTracksToPlaylist (res['id']);
                         }
-                    })
+                    });
                 }
-            })
+            });
         }
 
         function addTracksToPlaylist (playlist_id, offset=0) {
             var uris = [];
-            for (index in buckets[chosenBucket]['items'].slice(offset, offset + 100)) {
+            for (index in buckets[chosenBucket]['items'].slice(offset, offset+=100)) {
                 uris.push(tracks[buckets[chosenBucket]['items'][index]]['uri']);
             }
             $.ajax({
@@ -386,7 +354,6 @@
                 dataType: 'json',
                 data: JSON.stringify(uris),
                 success: function (response) {
-                    offset += 100;
                     if (offset < buckets[chosenBucket]['total']) {
                         addTracksToPlaylist(playlist_id, offset);
                     }

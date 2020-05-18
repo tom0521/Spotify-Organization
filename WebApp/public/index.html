@@ -60,12 +60,7 @@
     <script id="list-template" type="text/x-handlebars-template">
         <div class="card-header">{{header}}</div>
         <div class="list-group" id="{{id}}-list">
-            <!-- Default content is a spinner -->
-            <div class="text-center list-group-item">
-                <div class="spinner-border text-success" role="status">
-                    <span class="sr-only">Loading...</span>
-                </div>
-            </div>
+            {{> loading-partial }}
         </div>
         <!-- If a footer is defined append it -->
         {{#if footer}}
@@ -82,7 +77,7 @@
 
     <!-- User Playlist Partial Template -->
     <script id="user-playlist-partial" type="text/x-handlebars-template">
-        <button onclick="getPlaylistTracks('{{id}}')" class="list-group-item rounded-0 d-flex justify-content-between align-items-center">
+        <button onclick="createBuckets('{{id}}')" class="list-group-item rounded-0 d-flex justify-content-between align-items-center">
             <div class="image-parent">
                 {{#if images.0.url}}
                     <img src="{{images.0.url}}" class="img-fluid" alt="default">
@@ -122,6 +117,15 @@
         </div>
     </script>
 
+    <!-- Loading Spinner Partial -->
+    <script id="loading-partial" type="text/x-handlebars-template">
+        <div class="text-center list-group-item">
+            <div class="spinner-border text-success" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+        </div>
+    </script>
+
     <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
     <script type="text/javascript" src="bootstrap-4.4.1-dist/js/bootstrap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/handlebars.js/4.7.6/handlebars.min.js"></script>
@@ -145,24 +149,26 @@
         Handlebars.registerPartial('bucket-partial', $('#bucket-partial').html());
         Handlebars.registerPartial('song-partial', $('#song-partial').html());
         Handlebars.registerPartial('create-footer-partial', $('#create-footer-partial').html());
+        Handlebars.registerPartial('loading-partial', $('#loading-partial').html());
 
         /* Compile the List Group Template and the List Items Temmplate */
         var listGroupTemplate = Handlebars.compile($('#list-template').html()),
-            listTemplate = Handlebars.compile($('#list-items-template').html());
+            listTemplate = Handlebars.compile($('#list-items-template').html()),
+            loadingTemplate = Handlebars.compile($('#loading-partial').html());
 
         /* Setup the User playlist column */
         $('#user-playlists').html(listGroupTemplate({
-            header: 'Playlists',
+            header: 'Your Playlists',
             id: 'user-playlists'
         }));
         /* Setup the Buckets Column */
         $('#buckets').html(listGroupTemplate({
-            header: 'Categories',
+            header: 'Sorted Playlists',
             id: 'buckets'
         }));
         /* Setup the Create Playlist Column */
         $('#create').html(listGroupTemplate({
-            header: 'Create',
+            header: 'Your New Playlist',
             id: 'create',
             footer: 'create-footer-partial'
         }));
@@ -174,10 +180,25 @@
             error = params.error;
 
 
-        var buckets = {};
-        var playlists = {items:[], total:0};
+        /** Data structures
+         *  playlists[id] = {
+         *      tracks,
+         *      artists[id] = artist_tracks,
+         *      buckets,
+         *      total
+         *  }
+         *  artists[id] = {
+         *      artist info
+         *  }
+         *  tracks[id] = {
+         *      track info
+         *  }
+         *  */
+
+        var playlists = {};
         var tracks = {};
         var artists = {};
+        var chosenPlaylist;
         var chosenBucket;
 
         if (error) {
@@ -194,9 +215,9 @@
         }
 
         // TODO: Issue #13
-        // function getSavedSongs() {
-        //
-        // }
+        function getSavedSongs() {
+
+        }
 
         function getPlaylists(url='https://api.spotify.com/v1/me/playlists') {
             $.ajax({
@@ -209,19 +230,43 @@
                 },
                 success: function (response) {
                     /* TODO: is there an easier way? */
-                    playlists.items = playlists.items.concat(response.items);
+                    for (let index in response.items) {
+                        let id = response.items[index].id;
+                        playlists[id] = response.items[index];
+                        playlists[id].artists = {};
+                        playlists[id].tracks.items = [];
+                        playlists[id].buckets = {};
+                    }
                     if (response.next) {
                         getPlaylists(response.next);
                     } else {
-                        playlists.items.sort((a, b) => b.tracks.total - a.tracks.total);
-                        playlists.total = response.total;
+                        /* TODO: #17 Fix this sorting */
+                        // playlists.items.sort((a, b) => b.tracks.total - a.tracks.total);
+                        // playlists.total = response.total;
                         $('#user-playlists-list').html(listTemplate({
                             partial: 'user-playlist-partial',
-                            items: playlists.items
+                            items: playlists
                         }));
+                        console.log(playlists);
                     }
                 }
             });
+        }
+
+        function createBuckets(id) {
+            /* TODO: clear the create playlist column */
+            $('#buckets-list').html(loadingTemplate());
+            $('#create-list').html(loadingTemplate());
+            chosenPlaylist = id;
+            /* If this playlist buckets have not already been made, make them */
+            if (Object.keys(playlists[id].buckets).length === 0) {
+                getPlaylistTracks(id);
+            } else { /* Otherwise, just display the buckets */
+                $('#buckets-list').html(listTemplate({
+                    partial: 'bucket-partial',
+                    items: playlists[id].buckets
+                }));
+            }
         }
 
         function getPlaylistTracks(id, url=`https://api.spotify.com/v1/playlists/${id}/tracks`) {
@@ -233,54 +278,85 @@
                 success: function(response) {
                     for (let index in response.items) {
                         let track = response.items[index].track;
+                        /* Add the track to the tracks and playlists tracks */
                         tracks[track.id] = track;
+                        playlists[id].tracks.items.push(track);
+
+                        /* Add the track to the playlist decade bucket */
                         let decade = getDecade(track);
-                        buckets[decade] = buckets[decade] || {items: [], total: 0};
-                        buckets[decade].items.push(track.id);
-                        buckets[decade].total++;
-                        artists[track.artists[0].id] = artists[track.artists[0].id] || {tracks:[]};
-                        artists[track.artists[0].id].tracks.push(track.id);
+                        playlists[id].buckets[decade] = playlists[id].buckets[decade] || {items: [], total: 0};
+                        playlists[id].buckets[decade].items.push(track.id);
+                        playlists[id].buckets[decade].total++;
+
+                        /* Add the track to the playlist artist's track list */
+                        playlists[id].artists[track.artists[0].id] = playlists[id].artists[track.artists[0].id] || { tracks:[] };
+                        playlists[id].artists[track.artists[0].id].tracks.push(track.id);
                     }
                     if (response.next) {
                         getPlaylistTracks(id, response.next);
                     } else {
-                        sortArtists();
+                        sortArtists(id);
                     }
                 }
             });
         }
 
-        function sortArtists(offset = 0) {
+        function sortArtists(playlist_id) {
+            let artist_ids = Object.keys(playlists[playlist_id].artists);
+            let ids = [];
+            for (let index in artist_ids) {
+                if (artist_ids[index] in artists) {
+                    putInBuckets(playlist_id, artist_ids[index]);
+                } else {
+                    ids.push(artist_ids[index]);
+                }
+            }
+            if (ids.length === 0) {
+                $('#buckets-list').html(listTemplate({
+                    partial: 'bucket-partial',
+                    items: playlists[playlist_id].buckets
+                }));
+            } else {
+                getArtists(playlist_id, ids);
+            }
+        }
+
+        function getArtists(playlist_id, artist_ids, offset = 0) {
             $.ajax({
                 url: 'https://api.spotify.com/v1/artists',
                 data: {
-                    ids: Array.from(Object.keys(artists).slice(offset, offset+=50)).join()
+                    ids: artist_ids.slice(offset, offset+=50).join()
                 },
                 headers: {
                     Authorization: 'Bearer ' + access_token
                 },
                 success: function (response) {
-                    for (artist_index in response.artists) {
-                        var artist = response.artists[artist_index];
-                        artists[artist.id].info = artist;
-                        for (genre_index in artist.genres) {
-                            var genre = artist.genres[genre_index];
-                            buckets[genre] = buckets[genre] || {items: [], total: 0};
-                            buckets[genre].items = buckets[genre].items.concat(artists[artist.id].tracks);
-                            buckets[genre].total += artists[artist.id].tracks.length;
-                        }
+                    for (let artist_index in response.artists) {
+                        let artist = response.artists[artist_index];
+                        artists[artist.id] = artist;
+                        putInBuckets(playlist_id, artist.id);
                     }
-                    if (offset < Object.keys(artists).length) {
-                        sortArtists(offset);
+                    if (offset < artist_ids.length) {
+                        getArtists(playlist_id, artist_ids, offset);
                     } else {
                         /* TODO: #17 sort buckets by total songs */
                         $('#buckets-list').html(listTemplate({
                             partial: 'bucket-partial',
-                            items: buckets
+                            items: playlists[playlist_id].buckets
                         }));
                     }
                 }
             });
+        }
+
+        function putInBuckets(playlist_id, artist_id) {
+            for (let genre_index in artists[artist_id]['genres']) {
+                let genre = artists[artist_id]['genres'][genre_index];
+                /* Add the artist's tracks to the genre bucket */
+                playlists[playlist_id].buckets[genre] = playlists[playlist_id].buckets[genre] || {items: [], total: 0};
+                playlists[playlist_id].buckets[genre].items = playlists[playlist_id].buckets[genre].items.concat(playlists[playlist_id].artists[artist_id].tracks);
+                playlists[playlist_id].buckets[genre].total += playlists[playlist_id].artists[artist_id].tracks.length;
+            }
         }
 
         function getDecade(track) {
@@ -291,7 +367,7 @@
 
         function getTracks(ids) {
             let bucket_tracks = [];
-            for (index in ids) {
+            for (let index in ids) {
                 bucket_tracks.push(tracks[ids[index]]);
             }
             bucket_tracks.sort((a, b) => {
@@ -308,7 +384,7 @@
 
         function getBucket(bucket) {
             chosenBucket = bucket;
-            var ids = buckets[bucket]['items'];
+            let ids = playlists[chosenPlaylist].buckets[bucket]['items'];
             getTracks(ids);
         }
 

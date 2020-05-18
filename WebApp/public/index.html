@@ -183,9 +183,8 @@
         /** Data structures
          *  playlists[id] = {
          *      tracks,
-         *      artists[id] = artist_tracks,
-         *      buckets,
-         *      total
+         *      artists,
+         *      buckets
          *  }
          *  artists[id] = {
          *      artist info
@@ -195,7 +194,15 @@
          *  }
          *  */
 
-        var playlists = {};
+        var playlists = {
+            saved: {
+                id: 'saved',
+                name: 'Saved Songs',
+                artists: {},
+                tracks: { total: 0 },
+                buckets: {}
+            }
+        };
         var tracks = {};
         var artists = {};
         var chosenPlaylist;
@@ -207,16 +214,50 @@
           if (access_token) {
             $('#login').hide();
             $('#loggedin').show();
-            getPlaylists();
+            getSavedTracks();
           } else {
             $('#login').show();
             $('#loggedin').hide();
           }
         }
 
-        // TODO: Issue #13
-        function getSavedSongs() {
+        function getSavedTracks(url='https://api.spotify.com/v1/me/tracks') {
+            /* For all the songs in Saved Tracks, add it to the tracks, the artist to the artists,
+                and the track id to the artists list in the playlist object, also sort the decades */
+            $.ajax({
+                url: url,
+                data: {
+                    limit: 50
+                },
+                headers: {
+                    Authorization: 'Bearer ' + access_token
+                },
+                success: function (response) {
+                    /* TODO: is there an easier way? */
+                    for (let index in response.items) {
+                        let track = response.items[index].track;
+                        /* TODO: Remove duplicate code */
+                        /* Add the track to the tracks */
+                        tracks[track.id] = track;
 
+                        /* Add the track to the playlist decade bucket */
+                        let decade = getDecade(track);
+                        playlists.saved.buckets[decade] = playlists.saved.buckets[decade] || {items: [], total: 0};
+                        playlists.saved.buckets[decade].items.push(track.id);
+                        playlists.saved.buckets[decade].total++;
+
+                        /* Add the track to the playlist artist's track list */
+                        playlists.saved.artists[track.artists[0].id] = playlists.saved.artists[track.artists[0].id] || { tracks:[] };
+                        playlists.saved.artists[track.artists[0].id].tracks.push(track.id);
+                    }
+                    if (response.next) {
+                        getSavedTracks(response.next);
+                    } else {
+                        playlists.saved.tracks.total = response.total;
+                        getPlaylists();
+                    }
+                }
+            });
         }
 
         function getPlaylists(url='https://api.spotify.com/v1/me/playlists') {
@@ -234,7 +275,6 @@
                         let id = response.items[index].id;
                         playlists[id] = response.items[index];
                         playlists[id].artists = {};
-                        playlists[id].tracks.items = [];
                         playlists[id].buckets = {};
                     }
                     if (response.next) {
@@ -242,7 +282,6 @@
                     } else {
                         /* TODO: #17 Fix this sorting */
                         // playlists.items.sort((a, b) => b.tracks.total - a.tracks.total);
-                        // playlists.total = response.total;
                         $('#user-playlists-list').html(listTemplate({
                             partial: 'user-playlist-partial',
                             items: playlists
@@ -253,12 +292,14 @@
         }
 
         function createBuckets(id) {
-            /* TODO: clear the create playlist column */
+            /* clear the create playlist column */
             $('#buckets-list').html(loadingTemplate());
             $('#create-list').html(loadingTemplate());
             chosenPlaylist = id;
-            /* If this playlist buckets have not already been made, make them */
-            if (Object.keys(playlists[id].buckets).length === 0) {
+
+            if (id === 'saved') { /* If Saved songs chosen, skip getting tracks and go to sort artists */
+                sortArtists(id);
+            } else if (Object.keys(playlists[id].buckets).length === 0) { /* If this playlist buckets have not already been made, make them */
                 getPlaylistTracks(id);
             } else { /* Otherwise, just display the buckets */
                 $('#buckets-list').html(listTemplate({
@@ -277,9 +318,9 @@
                 success: function(response) {
                     for (let index in response.items) {
                         let track = response.items[index].track;
-                        /* Add the track to the tracks and playlists tracks */
+                        /* TODO: Put in separate function */
+                        /* Add the track to the tracks */
                         tracks[track.id] = track;
-                        playlists[id].tracks.items.push(track);
 
                         /* Add the track to the playlist decade bucket */
                         let decade = getDecade(track);
@@ -415,9 +456,9 @@
         }
 
         function addTracksToPlaylist (playlist_id, offset=0) {
-            var uris = [];
-            for (index in buckets[chosenBucket]['items'].slice(offset, offset+=100)) {
-                uris.push(tracks[buckets[chosenBucket]['items'][index]]['uri']);
+            let uris = [];
+            for (let index in playlists[chosenPlaylist].buckets[chosenBucket].items.slice(offset, offset+=100)) {
+                uris.push(tracks[playlists[chosenPlaylist].buckets[chosenBucket].items[index]].uri);
             }
             $.ajax({
                 type: 'POST',
@@ -429,7 +470,7 @@
                 dataType: 'json',
                 data: JSON.stringify(uris),
                 success: function (response) {
-                    if (offset < buckets[chosenBucket]['total']) {
+                    if (offset < playlists[chosenPlaylist].buckets[chosenBucket].total) {
                         addTracksToPlaylist(playlist_id, offset);
                     }
                 }

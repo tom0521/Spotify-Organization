@@ -86,7 +86,7 @@
                 {{/if}}
             </div>
             {{name}}
-            <span class="badge badge-success badge-pill">{{tracks.total}} Songs</span>
+            <span class="badge badge-success badge-pill">{{tracks.total}} Song{{#ifGreater tracks.total 1}}s{{/ifGreater}}</span>
         </button>
     </script>
 
@@ -94,7 +94,7 @@
     <script id="bucket-partial" type="text/x-handlebars-template">
         <button onclick='getBucket("{{@key}}")' class="list-group-item rounded-0 d-flex justify-content-between align-items-center">
             {{@key}}
-            <span class="badge badge-success badge-pill">{{total}} Songs</span>
+<span class="badge badge-success badge-pill">{{total}} Song{{#ifGreater total 1}}s{{/ifGreater}}</span>
         </button>
     </script>
 
@@ -113,7 +113,7 @@
     <!-- Create Playlist Footer Partial -->
     <script id="create-footer-partial" type="text/x-handlebars-template">
         <div class="card-footer text-right">
-            <button type="button" class="btn btn-success" onclick="createPlaylist()">Create Playlists</button>
+            <button type="button" class="btn btn-success" onclick="createPlaylist()">Create Playlist</button>
         </div>
     </script>
 
@@ -143,6 +143,13 @@
           }
           return hashParams;
         }
+
+        Handlebars.registerHelper('ifGreater', function(v1, v2, options) {
+            if (v1 > v2) {
+                return options.fn(this);
+            }
+            return options.inverse(this);
+        });
 
         /* Register all the partials */
         Handlebars.registerPartial('user-playlist-partial', $('#user-playlist-partial').html());

@@ -1,8 +1,8 @@
 {
   "author": "Thomas Sherwood",
-  "name": "disc-jockey",
+  "name": "top-shelf",
   "description": "Simple app to sort a Spotify playlist into separate playlists by genre, decade, etc.",
-  "version": "0.1.1",
+  "version": "0.2.1",
   "dependencies": {
     "config": "^3.3.1",
     "cookie-parser": "^1.3.2",

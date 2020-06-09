@@ -1,3 +1,6 @@
 .idea
 organize.sh
 WebApp/config/production.json
+WebApp/package-lock.json
+WebApp/run_server.sh
+WebApp/node_modules
